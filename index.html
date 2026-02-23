@@ -1,0 +1,2052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>字卡</title>
+    <!-- 使用 Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 简易 day.js 用于时间格式化 -->
+    <script src="https://unpkg.com/dayjs@1.11.9/dayjs.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 8px;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 420px;
+            height: 700px;
+            background-color: var(--bg-primary);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            border-radius: 32px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: background-color 0.2s, border-color 0.2s;
+            border: 1px solid var(--border-light);
+        }
+
+        .app-bg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 1;
+            transition: opacity 0.2s;
+        }
+        .header, .main-content, .input-area, .tab-bar, .modal-overlay {
+            position: relative;
+            z-index: 10;
+        }
+        .modal-overlay {
+            z-index: 200;
+        }
+
+        .header {
+            background-color: var(--header-bg);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--header-text);
+            font-weight: 500;
+            font-size: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            border-bottom: 1px solid var(--border-light);
+            flex-shrink: 0;
+        }
+
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+            scrollbar-width: thin;
+            scrollbar-color: var(--footnote) var(--border-light);
+        }
+        .main-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        .main-content::-webkit-scrollbar-thumb {
+            background: var(--footnote);
+            border-radius: 20px;
+        }
+
+        .date-divider {
+            text-align: center;
+            font-size: 11px;
+            color: var(--footnote);
+            margin: 8px 0;
+            background-color: var(--date-bg);
+            align-self: center;
+            padding: 4px 16px;
+            border-radius: 30px;
+            border: 1px solid var(--border-light);
+            backdrop-filter: blur(4px);
+        }
+
+        .message-row {
+            display: flex;
+            width: 100%;
+        }
+        .message-row.me {
+            justify-content: flex-end;
+        }
+        .message-row.friend {
+            justify-content: flex-start;
+        }
+
+        .message-wrapper {
+            max-width: 75%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message-bubble {
+            padding: 10px 14px;
+            word-wrap: break-word;
+            line-height: 1.4;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+            font-size: 15px;
+            border: 1px solid var(--border-light);
+        }
+        .message-bubble.me {
+            background: var(--bubble-me-bg);
+            color: var(--bubble-me-text);
+            border-radius: var(--bubble-me-radius, 18px 4px 18px 18px);
+        }
+        .message-bubble.friend {
+            background: var(--bubble-friend-bg);
+            color: var(--bubble-friend-text);
+            border-radius: var(--bubble-friend-radius, 4px 18px 18px 18px);
+        }
+
+        .meta-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: var(--footnote);
+            margin-top: 4px;
+            padding: 0 4px;
+        }
+        .message-row.me .meta-info {
+            justify-content: flex-end;
+        }
+        .status-badge {
+            font-size: 10px;
+            background: none !important;
+            border: none !important;
+            padding: 0 !important;
+            color: var(--status-text);
+        }
+        .status-badge.read {
+            color: var(--status-read);
+        }
+        .status-badge.sending {
+            color: var(--status-sending);
+            animation: pulse 1s infinite;
+        }
+        .status-badge.sent {
+            color: var(--status-sent);
+        }
+
+        .input-area {
+            display: flex;
+            padding: 12px 16px 14px;
+            background: var(--input-area-bg);
+            border-top: 1px solid var(--border-light);
+            gap: 8px;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+        .message-input, .card-input {
+            flex: 1;
+            border: none;
+            background: var(--input-bg);
+            border-radius: 30px;
+            padding: 12px 16px;
+            font-size: 15px;
+            outline: none;
+            resize: none;
+            border: 1px solid var(--border-light);
+            color: var(--input-text);
+        }
+        .message-input:focus, .card-input:focus {
+            border-color: var(--input-focus-border);
+        }
+        .send-btn, .heart-btn, .add-card-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background: var(--send-btn-bg);
+            color: var(--send-btn-text);
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            box-shadow: 0 2px 5px var(--btn-shadow);
+            transition: 0.1s;
+            border: 1px solid var(--border-light);
+        }
+        .send-btn:hover, .heart-btn:hover, .add-card-btn:hover {
+            background: var(--send-btn-hover);
+        }
+        .heart-btn {
+            background: var(--heart-btn-bg);
+        }
+        .heart-btn::before {
+            content: "❤️";
+        }
+        .send-btn::before {
+            content: "➤";
+            font-size: 20px;
+        }
+        .add-card-btn::before {
+            content: "+";
+            font-size: 28px;
+        }
+
+        .tab-bar {
+            display: flex;
+            background: var(--tab-bar-bg);
+            padding: 6px 16px;
+            justify-content: space-around;
+            border-top: 1px solid var(--border-light);
+            flex-shrink: 0;
+        }
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+            color: var(--tab-text);
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .tab-item.active {
+            background: var(--tab-active-bg);
+            color: var(--tab-active-text);
+        }
+        .tab-item i { font-size: 22px; margin-bottom: 2px; }
+
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.1);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        .modal-card {
+            background: var(--modal-bg);
+            width: 85%;
+            border-radius: 40px;
+            padding: 24px 20px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+            border: 1px solid var(--border-light);
+        }
+        .modal-card h3 {
+            color: var(--modal-text);
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .modal-card textarea {
+            width: 100%;
+            height: 150px;
+            border: 2px solid var(--border-light);
+            border-radius: 28px;
+            padding: 16px;
+            font-size: 15px;
+            resize: none;
+            margin: 18px 0;
+            background: var(--modal-input-bg);
+            color: var(--modal-input-text);
+        }
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 10px 24px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 500;
+            background: var(--modal-btn-bg);
+            color: var(--modal-btn-text);
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .modal-btn:last-child {
+            background: var(--modal-btn-primary-bg);
+            color: var(--modal-btn-primary-text);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 0 4px;
+        }
+        .card-header span {
+            background: var(--card-header-bg);
+            padding: 4px 16px;
+            border-radius: 40px;
+            border: 1px solid var(--border-light);
+            font-weight: 500;
+            color: var(--card-header-text);
+        }
+        .batch-toggle {
+            background: var(--batch-toggle-bg);
+            border: none;
+            border-radius: 40px;
+            padding: 8px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--batch-toggle-text);
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+        }
+        .batch-bar {
+            background: var(--batch-bar-bg);
+            border-radius: 50px;
+            padding: 10px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-light);
+        }
+        .batch-bar label {
+            font-weight: 500;
+            color: var(--batch-bar-text);
+        }
+        .batch-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .batch-btn {
+            background: var(--batch-btn-bg);
+            border: none;
+            border-radius: 40px;
+            padding: 6px 16px;
+            color: var(--batch-btn-text);
+            font-weight: 500;
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+        }
+        .batch-btn.danger {
+            background: var(--batch-btn-danger-bg);
+        }
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 4px 0;
+        }
+        .card-item {
+            background: var(--card-item-bg);
+            border-radius: 50px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid var(--border-light);
+            box-shadow: 0 2px 6px var(--card-shadow);
+        }
+        .card-checkbox {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--checkbox-accent);
+        }
+        .card-content {
+            flex: 1;
+            font-size: 15px;
+            color: var(--card-text);
+            word-break: break-word;
+        }
+        .del-card {
+            background: var(--del-btn-bg);
+            border: none;
+            font-size: 20px;
+            color: var(--del-btn-text);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stat-panel {
+            background: var(--stat-bg);
+            border-radius: 40px;
+            padding: 24px;
+            margin: 16px 8px;
+            border: 1px solid var(--border-light);
+            box-shadow: 0 4px 10px var(--stat-shadow);
+            position: relative;
+        }
+        .stat-item {
+            font-size: 16px;
+            margin: 16px 0;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed var(--border-light);
+            padding-bottom: 8px;
+            color: var(--stat-text);
+        }
+        .stat-item strong {
+            background: var(--stat-strong-bg);
+            padding: 2px 12px;
+            border-radius: 40px;
+            color: var(--stat-strong-text);
+            border: 1px solid var(--border-light);
+        }
+        .card-usage-list {
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .reset-btn {
+            background: var(--btn-danger-bg, #e6a5a5);
+            border: 1px solid var(--border-light);
+            border-radius: 50px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--btn-danger-text, #3a2a2a);
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: 0.1s;
+            border: 1px solid white;
+        }
+        .reset-btn:hover {
+            opacity: 0.9;
+        }
+
+        .style-switch {
+            display: flex;
+            gap: 12px;
+            margin: 16px 0;
+            justify-content: center;
+        }
+        .style-btn {
+            flex: 1;
+            padding: 12px 0;
+            border-radius: 40px;
+            border: 1px solid var(--border-light);
+            background: var(--style-btn-bg);
+            color: var(--style-btn-text);
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .style-btn.active {
+            background: var(--style-btn-active-bg);
+            color: var(--style-btn-active-text);
+            border-color: var(--style-btn-active-border);
+        }
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            padding: 20px 12px;
+        }
+        .color-option {
+            height: 80px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            color: var(--color-option-text);
+            border: 2px solid transparent;
+            transition: 0.1s;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .color-option.active {
+            border-color: var(--color-option-active-border);
+            box-shadow: 0 0 0 3px var(--color-option-active-glow);
+        }
+        .bubble-option {
+            height: 60px;
+            background-color: var(--bubble-option-bg);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .bubble-option.active {
+            border-color: var(--bubble-option-active-border);
+            background-color: var(--bubble-option-active-bg);
+        }
+        .bubble-sample {
+            width: 50px;
+            height: 32px;
+            background-color: var(--bubble-sample-bg);
+        }
+        .bg-custom-section {
+            padding: 0 16px 24px;
+        }
+        .bg-upload-btn {
+            background: var(--bg-upload-bg);
+            border: 1px solid var(--border-light);
+            border-radius: 50px;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--bg-upload-text);
+            width: 100%;
+            margin-bottom: 16px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .bg-opacity-slider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            color: var(--slider-text);
+        }
+        .bg-reset {
+            background-color: var(--bg-reset-bg);
+            border: 1px solid var(--border-light);
+            border-radius: 40px;
+            padding: 10px 20px;
+            color: var(--bg-reset-text);
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 自定义背景图层 -->
+        <div v-if="bgImage" class="app-bg-layer" :style="{ backgroundImage: 'url(' + bgImage + ')', opacity: bgOpacity }"></div>
+
+        <!-- 头部 -->
+        <div class="header">
+            <span>{{ headerTitle }}</span>
+            <span>✨</span>
+        </div>
+
+        <!-- 主视图区域 -->
+        <div class="main-content" ref="chatPanel">
+            <!-- 聊天页面 -->
+            <template v-if="currentPage === 'chat'">
+                <template v-for="(msg, idx) in messages" :key="msg.id">
+                    <div v-if="idx === 0 || !isSameDay(messages[idx-1].timestamp, msg.timestamp)" class="date-divider">
+                        {{ formatDate(msg.timestamp) }}
+                    </div>
+                    <div class="message-row" :class="msg.sender">
+                        <div class="message-wrapper">
+                            <div class="message-bubble" :class="msg.sender">{{ msg.content }}</div>
+                            <div class="meta-info">
+                                <span>{{ formatTime(msg.timestamp) }}</span>
+                                <span v-if="msg.sender === 'me'" class="status-badge" :class="{ read: msg.status === '已读' }">
+                                    {{ msg.status }}
+                                </span>
+                                <span v-if="msg.sender === 'friend' && msg.status" class="status-badge" :class="msg.status">
+                                    {{ msg.status === 'sending' ? '输入中…' : '已发送' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <div style="height: 10px;"></div>
+            </template>
+
+            <!-- 字卡页面 -->
+            <template v-if="currentPage === 'cards'">
+                <div class="card-header">
+                    <span>📋 字卡库 ({{ cards.length }})</span>
+                    <button class="batch-toggle" @click="toggleBatchMode">{{ batchMode ? '取消' : '批量选择' }}</button>
+                </div>
+
+                <div v-if="batchMode" class="batch-bar">
+                    <label style="display: flex; align-items: center; gap: 6px;">
+                        <input type="checkbox" v-model="selectAll"> 全选
+                    </label>
+                    <div class="batch-actions">
+                        <button class="batch-btn danger" @click="deleteSelected">删除选中</button>
+                    </div>
+                </div>
+
+                <div class="card-list">
+                    <div v-for="(card, i) in cards" :key="i" class="card-item">
+                        <input v-if="batchMode" type="checkbox" class="card-checkbox" v-model="selectedCards" :value="i">
+                        <span class="card-content">{{ card }}</span>
+                        <button v-if="!batchMode" class="del-card" @click="deleteCard(i)">✕</button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- 统计页面（含重置按钮） -->
+            <template v-if="currentPage === 'stats'">
+                <div class="stat-panel">
+                    <div class="stat-item">📦 字卡总数 <strong>{{ cardCount }}</strong></div>
+                    <div class="stat-item">💬 聊天总数 <strong>{{ totalMessages }}</strong></div>
+                    <div class="stat-item">📊 字卡使用频率</div>
+                    <div class="card-usage-list">
+                        <div v-for="{ content, count } in sortedCardUsageStats" :key="content" class="stat-item" style="font-size:14px;">
+                            {{ content }} <strong>{{ count }}次</strong>
+                        </div>
+                    </div>
+                    <!-- 重置按钮 -->
+                    <button class="reset-btn" @click="confirmReset">🔄 重置所有数据</button>
+                </div>
+            </template>
+
+            <!-- 主题页面 -->
+            <template v-if="currentPage === 'theme'">
+                <div style="padding: 16px;">
+                    <h3 style="margin:10px 0; color: var(--header-text);">🎨 主题风格</h3>
+                    <div class="style-switch">
+                        <button class="style-btn" :class="{ active: styleMode === 'simple' }" @click="setStyleMode('simple')">简约·莫兰迪</button>
+                        <button class="style-btn" :class="{ active: styleMode === 'cute' }" @click="setStyleMode('cute')">清新·少女</button>
+                    </div>
+
+                    <h3 style="margin:20px 0 10px; color: var(--header-text);">🎨 配色</h3>
+                    <div class="theme-grid">
+                        <div v-for="color in currentColors" :key="color.name" 
+                             class="color-option" :class="{ active: currentTheme === color.name }"
+                             :style="{ backgroundColor: color.value }" 
+                             @click="setColorTheme(color.name)">
+                            {{ color.name }}
+                        </div>
+                    </div>
+
+                    <h3 style="margin:20px 0 10px; color: var(--header-text);">💭 气泡形状</h3>
+                    <div class="theme-grid">
+                        <div v-for="s in 4" :key="s" 
+                             class="bubble-option" :class="{ active: bubbleStyle === s }"
+                             @click="setBubbleStyle(s)">
+                            <div class="bubble-sample" :style="bubbleSampleStyle(s)"></div>
+                        </div>
+                    </div>
+
+                    <!-- 自定义背景 -->
+                    <h3 style="margin:20px 0 10px; color: var(--header-text);">🖼️ 自定义背景</h3>
+                    <div class="bg-custom-section">
+                        <input type="file" accept="image/*" ref="fileInput" style="display: none;" @change="onBgImageUpload">
+                        <button class="bg-upload-btn" @click="$refs.fileInput.click()">🌸 选择图片</button>
+                        <div class="bg-opacity-slider">
+                            <span>透明度</span>
+                            <input type="range" min="0" max="1" step="0.05" v-model.number="bgOpacity">
+                            <span>{{ Math.round(bgOpacity * 100) }}%</span>
+                        </div>
+                        <button class="bg-reset" @click="resetBgImage" v-if="bgImage">重置背景</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- 聊天输入栏 -->
+        <div class="input-area" v-if="currentPage === 'chat'">
+            <textarea class="message-input" v-model="singleMessage" placeholder="输入消息..." rows="1" @keyup.enter="sendSingleMessage"></textarea>
+            <button class="heart-btn" @click="showBulkModal = true"></button>
+            <button class="send-btn" @click="sendSingleMessage"></button>
+        </div>
+
+        <!-- 字卡添加栏 -->
+        <div class="input-area" v-if="currentPage === 'cards'">
+            <input type="text" class="card-input" v-model="newCardText" placeholder="新字卡..." @keyup.enter="addCard">
+            <button class="add-card-btn" @click="addCard"></button>
+        </div>
+
+        <!-- 底部导航栏 -->
+        <div class="tab-bar">
+            <div class="tab-item" :class="{ active: currentPage === 'chat' }" @click="currentPage = 'chat'"><i>💬</i><span>聊天</span></div>
+            <div class="tab-item" :class="{ active: currentPage === 'cards' }" @click="currentPage = 'cards'"><i>📋</i><span>字卡</span></div>
+            <div class="tab-item" :class="{ active: currentPage === 'stats' }" @click="currentPage = 'stats'"><i>📊</i><span>统计</span></div>
+            <div class="tab-item" :class="{ active: currentPage === 'theme' }" @click="currentPage = 'theme'"><i>🎨</i><span>主题</span></div>
+        </div>
+
+        <!-- 多消息弹窗 -->
+        <div v-if="showBulkModal" class="modal-overlay" @click.self="showBulkModal = false">
+            <div class="modal-card">
+                <h3>❤️ 每行一条消息</h3>
+                <textarea v-model="bulkInput" placeholder="例如：&#10;今天天气真好&#10;想你啦~&#10;一起玩吧"></textarea>
+                <div class="modal-actions">
+                    <button class="modal-btn" @click="showBulkModal = false">取消</button>
+                    <button class="modal-btn" @click="sendBulkMessages">发送多条</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, watch, nextTick } = Vue;
+
+        const app = createApp({
+            setup() {
+                // ---------- 本地存储辅助函数 ----------
+                const STORAGE_KEYS = {
+                    CARDS: 'wordCards',
+                    MESSAGES: 'chatMessages',
+                    STYLE_MODE: 'styleMode',
+                    CURRENT_THEME: 'currentTheme',
+                    BUBBLE_STYLE: 'bubbleStyle',
+                    BG_IMAGE: 'bgImage',
+                    BG_OPACITY: 'bgOpacity',
+                };
+
+                function loadFromStorage(key, defaultValue) {
+                    const stored = localStorage.getItem(key);
+                    if (stored) {
+                        try {
+                            return JSON.parse(stored);
+                        } catch (e) {
+                            return defaultValue;
+                        }
+                    }
+                    return defaultValue;
+                }
+
+                function saveToStorage(key, value) {
+                    localStorage.setItem(key, JSON.stringify(value));
+                }
+
+                // ---------- 初始字卡库 (默认值) ----------
+                const defaultCards = `亲亲、抱抱、贴贴、想亲你、别哭、宝宝、喜欢、讨厌、喜欢你、想你、好想你、不开心、吃醋、生气、好累、哭、我在呢、我来啦、一起去散步吧、一起听音乐、不要偷吃了…、对不起、好、不要、摸摸头、在工作、在学习、在看书、在户外、在战斗、我们一起、睡觉、好困、熬夜、不要熬夜、惩罚、别怕、有我在、哄我、字卡里没有我想说的话、很忙，暂时不能过来、很忙，一会再聊好不好、有点忙，可以和你聊天、不忙，我来陪你、躺着、站着、坐着、好好吃饭、多喝水、吃药、生病、照顾好自己、我喜欢你、我好想你、我爱你、你爱我吗、陪在我身边、小猫、小狗、下雨、下雪、春天、夏天、秋天、冬天、冷、热、时间不早了、是我、注意安全、我等你、牵手、老婆、你很棒、你来选、纠结、左边、中间、右边、第一个、第二个、第三个、心疼、同事、工作`.split('、');
+
+                // 从localStorage加载字卡和消息
+                const cards = ref(loadFromStorage(STORAGE_KEYS.CARDS, defaultCards));
+
+                const defaultMessages = [
+                    { id: 1, sender: 'friend', content: '嗨～ 今天过得怎么样？', timestamp: new Date(Date.now() - 7200000).toISOString(), status: 'sent' },
+                    { id: 2, sender: 'me', content: '还不错呀', timestamp: new Date(Date.now() - 3600000).toISOString(), status: '已读' },
+                    { id: 3, sender: 'friend', content: '那就好～', timestamp: new Date(Date.now() - 3500000).toISOString(), status: 'sent' },
+                ];
+                const loadedMessages = loadFromStorage(STORAGE_KEYS.MESSAGES, defaultMessages);
+                let maxId = 0;
+                const messages = ref(loadedMessages.map(m => {
+                    if (m.id > maxId) maxId = m.id;
+                    if (typeof m.timestamp !== 'string') {
+                        m.timestamp = new Date(m.timestamp).toISOString();
+                    }
+                    return m;
+                }));
+                let nextId = maxId + 1;
+
+                // 监听字卡和消息变化并保存
+                watch([cards, messages], () => {
+                    saveToStorage(STORAGE_KEYS.CARDS, cards.value);
+                    saveToStorage(STORAGE_KEYS.MESSAGES, messages.value);
+                }, { deep: true });
+
+                // ---------- 主题相关（记忆功能）----------
+                const styleMode = ref(loadFromStorage(STORAGE_KEYS.STYLE_MODE, 'simple'));
+                const currentTheme = ref(loadFromStorage(STORAGE_KEYS.CURRENT_THEME, '蓝'));
+                const bubbleStyle = ref(loadFromStorage(STORAGE_KEYS.BUBBLE_STYLE, 1));
+                const bgImage = ref(loadFromStorage(STORAGE_KEYS.BG_IMAGE, null));
+                const bgOpacity = ref(loadFromStorage(STORAGE_KEYS.BG_OPACITY, 0.3));
+
+                watch([styleMode, currentTheme, bubbleStyle, bgImage, bgOpacity], () => {
+                    saveToStorage(STORAGE_KEYS.STYLE_MODE, styleMode.value);
+                    saveToStorage(STORAGE_KEYS.CURRENT_THEME, currentTheme.value);
+                    saveToStorage(STORAGE_KEYS.BUBBLE_STYLE, bubbleStyle.value);
+                    saveToStorage(STORAGE_KEYS.BG_IMAGE, bgImage.value);
+                    saveToStorage(STORAGE_KEYS.BG_OPACITY, bgOpacity.value);
+                }, { deep: true });
+
+                // 配色方案
+                const simpleColors = [
+                    { name: '蓝', value: '#e9f0f5' },
+                    { name: '粉', value: '#f8e3e8' },
+                    { name: '绿', value: '#e0e9da' },
+                    { name: '紫', value: '#e6deee' },
+                    { name: '黄', value: '#faf0d7' },
+                    { name: '红', value: '#f5dddb' }
+                ];
+                const cuteColors = [
+                    { name: '初樱粉', value: '#ffe6f0' },
+                    { name: '浅茶杏', value: '#f7ede2' },
+                    { name: '薄荷冰', value: '#e0f2f0' },
+                    { name: '丁香紫', value: '#f0e6ff' },
+                    { name: '茉莉黄', value: '#fff7e6' },
+                    { name: '雾霾蓝', value: '#e6f0fa' }
+                ];
+
+                const currentColors = computed(() => styleMode.value === 'simple' ? simpleColors : cuteColors);
+
+                // ---------- 完整版 applyTheme 函数（包含所有配色）----------
+                function applyTheme(style, colorName) {
+                    const root = document.documentElement;
+
+                    if (style === 'simple') {
+                        // 简约莫兰迪主题
+                        switch(colorName) {
+                            case '蓝':
+                                root.style.setProperty('--bg-primary', '#e9f0f5');
+                                root.style.setProperty('--header-bg', '#b3cbd9');
+                                root.style.setProperty('--header-text', '#2c3e4f');
+                                root.style.setProperty('--bubble-me-bg', '#c2d5e0');
+                                root.style.setProperty('--bubble-me-text', '#1e2b36');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#1e2b36');
+                                root.style.setProperty('--send-btn-bg', '#a6c1d1');
+                                root.style.setProperty('--send-btn-text', 'white');
+                                root.style.setProperty('--heart-btn-bg', '#f2b8c6');
+                                root.style.setProperty('--footnote', '#6b7b8b');
+                                root.style.setProperty('--border-light', '#cfdde7');
+                                root.style.setProperty('--input-focus-border', '#a6c1d1');
+                                root.style.setProperty('--send-btn-hover', '#b8d2e0');
+                                root.style.setProperty('--tab-bar-bg', '#b3cbd9');
+                                root.style.setProperty('--tab-text', '#4a5f6b');
+                                root.style.setProperty('--tab-active-bg', '#d4e2ed');
+                                root.style.setProperty('--tab-active-text', '#356a7a');
+                                root.style.setProperty('--card-header-bg', '#e9f0f5');
+                                root.style.setProperty('--card-header-text', '#2c3e4f');
+                                root.style.setProperty('--batch-toggle-bg', '#b3cbd9');
+                                root.style.setProperty('--batch-toggle-text', '#1e2b36');
+                                root.style.setProperty('--batch-bar-bg', '#d4e2ed');
+                                root.style.setProperty('--batch-bar-text', '#1e2b36');
+                                root.style.setProperty('--batch-btn-bg', '#a6c1d1');
+                                root.style.setProperty('--batch-btn-text', 'white');
+                                root.style.setProperty('--batch-btn-danger-bg', '#e6a5a5');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#1e3a4a');
+                                root.style.setProperty('--checkbox-accent', '#5d7a8c');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#1e2b36');
+                                root.style.setProperty('--stat-strong-bg', '#e9f0f5');
+                                root.style.setProperty('--stat-strong-text', '#1e2b36');
+                                root.style.setProperty('--stat-shadow', 'rgba(0,0,0,0.02)');
+                                root.style.setProperty('--date-bg', 'rgba(220, 230, 240, 0.6)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#1e3a4a');
+                                root.style.setProperty('--modal-input-bg', '#f9f9f9');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#b3cbd9');
+                                root.style.setProperty('--modal-btn-text', '#1e2b36');
+                                root.style.setProperty('--modal-btn-primary-bg', '#f2b8c6');
+                                root.style.setProperty('--modal-btn-primary-text', '#1e2b36');
+                                root.style.setProperty('--input-area-bg', '#e9f0f5');
+                                root.style.setProperty('--input-bg', 'white');
+                                root.style.setProperty('--input-text', '#1e2b36');
+                                root.style.setProperty('--btn-shadow', 'rgba(0,0,0,0.1)');
+                                root.style.setProperty('--style-btn-bg', '#f0f5fa');
+                                root.style.setProperty('--style-btn-text', '#2c3e4f');
+                                root.style.setProperty('--style-btn-active-bg', '#b3cbd9');
+                                root.style.setProperty('--style-btn-active-text', '#1e2b36');
+                                root.style.setProperty('--style-btn-active-border', '#ffffff');
+                                root.style.setProperty('--color-option-text', '#2c3e4f');
+                                root.style.setProperty('--color-option-active-border', 'white');
+                                root.style.setProperty('--color-option-active-glow', 'rgba(255,255,255,0.7)');
+                                root.style.setProperty('--bubble-option-bg', '#cfdee9');
+                                root.style.setProperty('--bubble-option-active-border', '#2c5a6e');
+                                root.style.setProperty('--bubble-option-active-bg', '#d4e2ed');
+                                root.style.setProperty('--bubble-sample-bg', '#5d7a8c');
+                                root.style.setProperty('--bg-upload-bg', '#b3cbd9');
+                                root.style.setProperty('--bg-upload-text', '#1e2b36');
+                                root.style.setProperty('--slider-text', '#2c3e4f');
+                                root.style.setProperty('--bg-reset-bg', '#e0c4c4');
+                                root.style.setProperty('--bg-reset-text', '#3a2a2a');
+                                root.style.setProperty('--status-text', '#6b7b8b');
+                                root.style.setProperty('--status-read', '#1d6b4a');
+                                root.style.setProperty('--status-sending', '#9e4f1a');
+                                root.style.setProperty('--status-sent', '#2e4a8c');
+                                break;
+                            case '粉':
+                                root.style.setProperty('--bg-primary', '#f8e3e8');
+                                root.style.setProperty('--header-bg', '#e5cbd2');
+                                root.style.setProperty('--header-text', '#4d3842');
+                                root.style.setProperty('--bubble-me-bg', '#f3d0d9');
+                                root.style.setProperty('--bubble-me-text', '#3d2a33');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#3d2a33');
+                                root.style.setProperty('--send-btn-bg', '#e5bdc7');
+                                root.style.setProperty('--send-btn-text', '#2c1e24');
+                                root.style.setProperty('--heart-btn-bg', '#f2b8c6');
+                                root.style.setProperty('--footnote', '#a07487');
+                                root.style.setProperty('--border-light', '#e7cbd6');
+                                root.style.setProperty('--input-focus-border', '#e5bdc7');
+                                root.style.setProperty('--send-btn-hover', '#f0ccd6');
+                                root.style.setProperty('--tab-bar-bg', '#e5cbd2');
+                                root.style.setProperty('--tab-text', '#6b4a58');
+                                root.style.setProperty('--tab-active-bg', '#f4d9e2');
+                                root.style.setProperty('--tab-active-text', '#943e5c');
+                                root.style.setProperty('--card-header-bg', '#f8e3e8');
+                                root.style.setProperty('--card-header-text', '#4d3842');
+                                root.style.setProperty('--batch-toggle-bg', '#e5bdc7');
+                                root.style.setProperty('--batch-toggle-text', '#2c1e24');
+                                root.style.setProperty('--batch-bar-bg', '#f4d9e2');
+                                root.style.setProperty('--batch-bar-text', '#4d3842');
+                                root.style.setProperty('--batch-btn-bg', '#d9a9b5');
+                                root.style.setProperty('--batch-btn-text', 'white');
+                                root.style.setProperty('--batch-btn-danger-bg', '#e6a5a5');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#4d3842');
+                                root.style.setProperty('--checkbox-accent', '#d989a8');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#4d3842');
+                                root.style.setProperty('--stat-strong-bg', '#f8e3e8');
+                                root.style.setProperty('--stat-strong-text', '#4d3842');
+                                root.style.setProperty('--stat-shadow', 'rgba(0,0,0,0.02)');
+                                root.style.setProperty('--date-bg', 'rgba(248, 227, 232, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#4d3842');
+                                root.style.setProperty('--modal-input-bg', '#f9f9f9');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#e5bdc7');
+                                root.style.setProperty('--modal-btn-text', '#2c1e24');
+                                root.style.setProperty('--modal-btn-primary-bg', '#f2b8c6');
+                                root.style.setProperty('--modal-btn-primary-text', '#2c1e24');
+                                root.style.setProperty('--input-area-bg', '#f8e3e8');
+                                root.style.setProperty('--input-bg', 'white');
+                                root.style.setProperty('--input-text', '#4d3842');
+                                root.style.setProperty('--btn-shadow', 'rgba(0,0,0,0.1)');
+                                root.style.setProperty('--style-btn-bg', '#f8e3e8');
+                                root.style.setProperty('--style-btn-text', '#4d3842');
+                                root.style.setProperty('--style-btn-active-bg', '#e5bdc7');
+                                root.style.setProperty('--style-btn-active-text', '#2c1e24');
+                                root.style.setProperty('--style-btn-active-border', '#ffffff');
+                                root.style.setProperty('--color-option-text', '#4d3842');
+                                root.style.setProperty('--color-option-active-border', 'white');
+                                root.style.setProperty('--color-option-active-glow', 'rgba(255,255,255,0.7)');
+                                root.style.setProperty('--bubble-option-bg', '#f3d0d9');
+                                root.style.setProperty('--bubble-option-active-border', '#943e5c');
+                                root.style.setProperty('--bubble-option-active-bg', '#f4d9e2');
+                                root.style.setProperty('--bubble-sample-bg', '#d989a8');
+                                root.style.setProperty('--bg-upload-bg', '#e5bdc7');
+                                root.style.setProperty('--bg-upload-text', '#2c1e24');
+                                root.style.setProperty('--slider-text', '#4d3842');
+                                root.style.setProperty('--bg-reset-bg', '#e0c4c4');
+                                root.style.setProperty('--bg-reset-text', '#3a2a2a');
+                                root.style.setProperty('--status-text', '#a07487');
+                                root.style.setProperty('--status-read', '#1d6b4a');
+                                root.style.setProperty('--status-sending', '#9e4f1a');
+                                root.style.setProperty('--status-sent', '#2e4a8c');
+                                break;
+                            case '绿':
+                                root.style.setProperty('--bg-primary', '#e0e9da');
+                                root.style.setProperty('--header-bg', '#c6d9be');
+                                root.style.setProperty('--header-text', '#2f493a');
+                                root.style.setProperty('--bubble-me-bg', '#d1e0c7');
+                                root.style.setProperty('--bubble-me-text', '#263f2f');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#263f2f');
+                                root.style.setProperty('--send-btn-bg', '#b9cfaf');
+                                root.style.setProperty('--send-btn-text', '#1a2f1f');
+                                root.style.setProperty('--heart-btn-bg', '#f2cfb8');
+                                root.style.setProperty('--footnote', '#618a6b');
+                                root.style.setProperty('--border-light', '#c6dbc0');
+                                root.style.setProperty('--input-focus-border', '#b9cfaf');
+                                root.style.setProperty('--send-btn-hover', '#cde0c4');
+                                root.style.setProperty('--tab-bar-bg', '#c6d9be');
+                                root.style.setProperty('--tab-text', '#3f6049');
+                                root.style.setProperty('--tab-active-bg', '#d9ecd2');
+                                root.style.setProperty('--tab-active-text', '#1d6332');
+                                root.style.setProperty('--card-header-bg', '#e0e9da');
+                                root.style.setProperty('--card-header-text', '#2f493a');
+                                root.style.setProperty('--batch-toggle-bg', '#b9cfaf');
+                                root.style.setProperty('--batch-toggle-text', '#1a2f1f');
+                                root.style.setProperty('--batch-bar-bg', '#d9ecd2');
+                                root.style.setProperty('--batch-bar-text', '#2f493a');
+                                root.style.setProperty('--batch-btn-bg', '#a6c0a0');
+                                root.style.setProperty('--batch-btn-text', 'white');
+                                root.style.setProperty('--batch-btn-danger-bg', '#e6a5a5');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#2f493a');
+                                root.style.setProperty('--checkbox-accent', '#7da389');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#2f493a');
+                                root.style.setProperty('--stat-strong-bg', '#e0e9da');
+                                root.style.setProperty('--stat-strong-text', '#2f493a');
+                                root.style.setProperty('--stat-shadow', 'rgba(0,0,0,0.02)');
+                                root.style.setProperty('--date-bg', 'rgba(224, 233, 218, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#2f493a');
+                                root.style.setProperty('--modal-input-bg', '#f9f9f9');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#b9cfaf');
+                                root.style.setProperty('--modal-btn-text', '#1a2f1f');
+                                root.style.setProperty('--modal-btn-primary-bg', '#f2cfb8');
+                                root.style.setProperty('--modal-btn-primary-text', '#1a2f1f');
+                                root.style.setProperty('--input-area-bg', '#e0e9da');
+                                root.style.setProperty('--input-bg', 'white');
+                                root.style.setProperty('--input-text', '#2f493a');
+                                root.style.setProperty('--btn-shadow', 'rgba(0,0,0,0.1)');
+                                root.style.setProperty('--style-btn-bg', '#e0e9da');
+                                root.style.setProperty('--style-btn-text', '#2f493a');
+                                root.style.setProperty('--style-btn-active-bg', '#b9cfaf');
+                                root.style.setProperty('--style-btn-active-text', '#1a2f1f');
+                                root.style.setProperty('--style-btn-active-border', '#ffffff');
+                                root.style.setProperty('--color-option-text', '#2f493a');
+                                root.style.setProperty('--color-option-active-border', 'white');
+                                root.style.setProperty('--color-option-active-glow', 'rgba(255,255,255,0.7)');
+                                root.style.setProperty('--bubble-option-bg', '#d1e0c7');
+                                root.style.setProperty('--bubble-option-active-border', '#1d6332');
+                                root.style.setProperty('--bubble-option-active-bg', '#d9ecd2');
+                                root.style.setProperty('--bubble-sample-bg', '#7da389');
+                                root.style.setProperty('--bg-upload-bg', '#b9cfaf');
+                                root.style.setProperty('--bg-upload-text', '#1a2f1f');
+                                root.style.setProperty('--slider-text', '#2f493a');
+                                root.style.setProperty('--bg-reset-bg', '#e0c4c4');
+                                root.style.setProperty('--bg-reset-text', '#3a2a2a');
+                                root.style.setProperty('--status-text', '#618a6b');
+                                root.style.setProperty('--status-read', '#1d6b4a');
+                                root.style.setProperty('--status-sending', '#9e4f1a');
+                                root.style.setProperty('--status-sent', '#2e4a8c');
+                                break;
+                            case '紫':
+                                root.style.setProperty('--bg-primary', '#e6deee');
+                                root.style.setProperty('--header-bg', '#cfc1df');
+                                root.style.setProperty('--header-text', '#3d2f4f');
+                                root.style.setProperty('--bubble-me-bg', '#d9cde7');
+                                root.style.setProperty('--bubble-me-text', '#322642');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#322642');
+                                root.style.setProperty('--send-btn-bg', '#c2b2d4');
+                                root.style.setProperty('--send-btn-text', '#231b30');
+                                root.style.setProperty('--heart-btn-bg', '#e8c7df');
+                                root.style.setProperty('--footnote', '#826e99');
+                                root.style.setProperty('--border-light', '#d7c5e3');
+                                root.style.setProperty('--input-focus-border', '#c2b2d4');
+                                root.style.setProperty('--send-btn-hover', '#d5c4e6');
+                                root.style.setProperty('--tab-bar-bg', '#cfc1df');
+                                root.style.setProperty('--tab-text', '#54446b');
+                                root.style.setProperty('--tab-active-bg', '#e4d6f0');
+                                root.style.setProperty('--tab-active-text', '#51397a');
+                                root.style.setProperty('--card-header-bg', '#e6deee');
+                                root.style.setProperty('--card-header-text', '#3d2f4f');
+                                root.style.setProperty('--batch-toggle-bg', '#c2b2d4');
+                                root.style.setProperty('--batch-toggle-text', '#231b30');
+                                root.style.setProperty('--batch-bar-bg', '#e4d6f0');
+                                root.style.setProperty('--batch-bar-text', '#3d2f4f');
+                                root.style.setProperty('--batch-btn-bg', '#b19fc7');
+                                root.style.setProperty('--batch-btn-text', 'white');
+                                root.style.setProperty('--batch-btn-danger-bg', '#e6a5a5');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#3d2f4f');
+                                root.style.setProperty('--checkbox-accent', '#9a80b0');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#3d2f4f');
+                                root.style.setProperty('--stat-strong-bg', '#e6deee');
+                                root.style.setProperty('--stat-strong-text', '#3d2f4f');
+                                root.style.setProperty('--stat-shadow', 'rgba(0,0,0,0.02)');
+                                root.style.setProperty('--date-bg', 'rgba(230, 222, 238, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#3d2f4f');
+                                root.style.setProperty('--modal-input-bg', '#f9f9f9');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#c2b2d4');
+                                root.style.setProperty('--modal-btn-text', '#231b30');
+                                root.style.setProperty('--modal-btn-primary-bg', '#e8c7df');
+                                root.style.setProperty('--modal-btn-primary-text', '#231b30');
+                                root.style.setProperty('--input-area-bg', '#e6deee');
+                                root.style.setProperty('--input-bg', 'white');
+                                root.style.setProperty('--input-text', '#3d2f4f');
+                                root.style.setProperty('--btn-shadow', 'rgba(0,0,0,0.1)');
+                                root.style.setProperty('--style-btn-bg', '#e6deee');
+                                root.style.setProperty('--style-btn-text', '#3d2f4f');
+                                root.style.setProperty('--style-btn-active-bg', '#c2b2d4');
+                                root.style.setProperty('--style-btn-active-text', '#231b30');
+                                root.style.setProperty('--style-btn-active-border', '#ffffff');
+                                root.style.setProperty('--color-option-text', '#3d2f4f');
+                                root.style.setProperty('--color-option-active-border', 'white');
+                                root.style.setProperty('--color-option-active-glow', 'rgba(255,255,255,0.7)');
+                                root.style.setProperty('--bubble-option-bg', '#d9cde7');
+                                root.style.setProperty('--bubble-option-active-border', '#51397a');
+                                root.style.setProperty('--bubble-option-active-bg', '#e4d6f0');
+                                root.style.setProperty('--bubble-sample-bg', '#9a80b0');
+                                root.style.setProperty('--bg-upload-bg', '#c2b2d4');
+                                root.style.setProperty('--bg-upload-text', '#231b30');
+                                root.style.setProperty('--slider-text', '#3d2f4f');
+                                root.style.setProperty('--bg-reset-bg', '#e0c4c4');
+                                root.style.setProperty('--bg-reset-text', '#3a2a2a');
+                                root.style.setProperty('--status-text', '#826e99');
+                                root.style.setProperty('--status-read', '#1d6b4a');
+                                root.style.setProperty('--status-sending', '#9e4f1a');
+                                root.style.setProperty('--status-sent', '#2e4a8c');
+                                break;
+                            case '黄':
+                                root.style.setProperty('--bg-primary', '#faf0d7');
+                                root.style.setProperty('--header-bg', '#f2e0bc');
+                                root.style.setProperty('--header-text', '#5e4f37');
+                                root.style.setProperty('--bubble-me-bg', '#f7e9c9');
+                                root.style.setProperty('--bubble-me-text', '#4f412d');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#4f412d');
+                                root.style.setProperty('--send-btn-bg', '#ebd5a8');
+                                root.style.setProperty('--send-btn-text', '#3f321e');
+                                root.style.setProperty('--heart-btn-bg', '#f7cfb0');
+                                root.style.setProperty('--footnote', '#a48b60');
+                                root.style.setProperty('--border-light', '#ead9b8');
+                                root.style.setProperty('--input-focus-border', '#ebd5a8');
+                                root.style.setProperty('--send-btn-hover', '#f4e2c1');
+                                root.style.setProperty('--tab-bar-bg', '#f2e0bc');
+                                root.style.setProperty('--tab-text', '#735f3f');
+                                root.style.setProperty('--tab-active-bg', '#faf0d7');
+                                root.style.setProperty('--tab-active-text', '#856f3a');
+                                root.style.setProperty('--card-header-bg', '#faf0d7');
+                                root.style.setProperty('--card-header-text', '#5e4f37');
+                                root.style.setProperty('--batch-toggle-bg', '#ebd5a8');
+                                root.style.setProperty('--batch-toggle-text', '#3f321e');
+                                root.style.setProperty('--batch-bar-bg', '#faf0d7');
+                                root.style.setProperty('--batch-bar-text', '#5e4f37');
+                                root.style.setProperty('--batch-btn-bg', '#ddc390');
+                                root.style.setProperty('--batch-btn-text', 'white');
+                                root.style.setProperty('--batch-btn-danger-bg', '#e6a5a5');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#5e4f37');
+                                root.style.setProperty('--checkbox-accent', '#c6a76b');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#5e4f37');
+                                root.style.setProperty('--stat-strong-bg', '#faf0d7');
+                                root.style.setProperty('--stat-strong-text', '#5e4f37');
+                                root.style.setProperty('--stat-shadow', 'rgba(0,0,0,0.02)');
+                                root.style.setProperty('--date-bg', 'rgba(250, 240, 215, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#5e4f37');
+                                root.style.setProperty('--modal-input-bg', '#f9f9f9');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#ebd5a8');
+                                root.style.setProperty('--modal-btn-text', '#3f321e');
+                                root.style.setProperty('--modal-btn-primary-bg', '#f7cfb0');
+                                root.style.setProperty('--modal-btn-primary-text', '#3f321e');
+                                root.style.setProperty('--input-area-bg', '#faf0d7');
+                                root.style.setProperty('--input-bg', 'white');
+                                root.style.setProperty('--input-text', '#5e4f37');
+                                root.style.setProperty('--btn-shadow', 'rgba(0,0,0,0.1)');
+                                root.style.setProperty('--style-btn-bg', '#faf0d7');
+                                root.style.setProperty('--style-btn-text', '#5e4f37');
+                                root.style.setProperty('--style-btn-active-bg', '#ebd5a8');
+                                root.style.setProperty('--style-btn-active-text', '#3f321e');
+                                root.style.setProperty('--style-btn-active-border', '#ffffff');
+                                root.style.setProperty('--color-option-text', '#5e4f37');
+                                root.style.setProperty('--color-option-active-border', 'white');
+                                root.style.setProperty('--color-option-active-glow', 'rgba(255,255,255,0.7)');
+                                root.style.setProperty('--bubble-option-bg', '#f7e9c9');
+                                root.style.setProperty('--bubble-option-active-border', '#856f3a');
+                                root.style.setProperty('--bubble-option-active-bg', '#faf0d7');
+                                root.style.setProperty('--bubble-sample-bg', '#c6a76b');
+                                root.style.setProperty('--bg-upload-bg', '#ebd5a8');
+                                root.style.setProperty('--bg-upload-text', '#3f321e');
+                                root.style.setProperty('--slider-text', '#5e4f37');
+                                root.style.setProperty('--bg-reset-bg', '#e0c4c4');
+                                root.style.setProperty('--bg-reset-text', '#3a2a2a');
+                                root.style.setProperty('--status-text', '#a48b60');
+                                root.style.setProperty('--status-read', '#1d6b4a');
+                                root.style.setProperty('--status-sending', '#9e4f1a');
+                                root.style.setProperty('--status-sent', '#2e4a8c');
+                                break;
+                            case '红':
+                                root.style.setProperty('--bg-primary', '#f5dddb');
+                                root.style.setProperty('--header-bg', '#ebc9c5');
+                                root.style.setProperty('--header-text', '#573a3a');
+                                root.style.setProperty('--bubble-me-bg', '#f2d3cf');
+                                root.style.setProperty('--bubble-me-text', '#4a3131');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#4a3131');
+                                root.style.setProperty('--send-btn-bg', '#e2bcb7');
+                                root.style.setProperty('--send-btn-text', '#392523');
+                                root.style.setProperty('--heart-btn-bg', '#f2b8b8');
+                                root.style.setProperty('--footnote', '#b17b7b');
+                                root.style.setProperty('--border-light', '#ebc7c7');
+                                root.style.setProperty('--input-focus-border', '#e2bcb7');
+                                root.style.setProperty('--send-btn-hover', '#edd3d0');
+                                root.style.setProperty('--tab-bar-bg', '#ebc9c5');
+                                root.style.setProperty('--tab-text', '#784d4d');
+                                root.style.setProperty('--tab-active-bg', '#f5dddb');
+                                root.style.setProperty('--tab-active-text', '#a34040');
+                                root.style.setProperty('--card-header-bg', '#f5dddb');
+                                root.style.setProperty('--card-header-text', '#573a3a');
+                                root.style.setProperty('--batch-toggle-bg', '#e2bcb7');
+                                root.style.setProperty('--batch-toggle-text', '#392523');
+                                root.style.setProperty('--batch-bar-bg', '#f5dddb');
+                                root.style.setProperty('--batch-bar-text', '#573a3a');
+                                root.style.setProperty('--batch-btn-bg', '#d1a4a0');
+                                root.style.setProperty('--batch-btn-text', 'white');
+                                root.style.setProperty('--batch-btn-danger-bg', '#e6a5a5');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#573a3a');
+                                root.style.setProperty('--checkbox-accent', '#c27c7c');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#573a3a');
+                                root.style.setProperty('--stat-strong-bg', '#f5dddb');
+                                root.style.setProperty('--stat-strong-text', '#573a3a');
+                                root.style.setProperty('--stat-shadow', 'rgba(0,0,0,0.02)');
+                                root.style.setProperty('--date-bg', 'rgba(245, 221, 219, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#573a3a');
+                                root.style.setProperty('--modal-input-bg', '#f9f9f9');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#e2bcb7');
+                                root.style.setProperty('--modal-btn-text', '#392523');
+                                root.style.setProperty('--modal-btn-primary-bg', '#f2b8b8');
+                                root.style.setProperty('--modal-btn-primary-text', '#392523');
+                                root.style.setProperty('--input-area-bg', '#f5dddb');
+                                root.style.setProperty('--input-bg', 'white');
+                                root.style.setProperty('--input-text', '#573a3a');
+                                root.style.setProperty('--btn-shadow', 'rgba(0,0,0,0.1)');
+                                root.style.setProperty('--style-btn-bg', '#f5dddb');
+                                root.style.setProperty('--style-btn-text', '#573a3a');
+                                root.style.setProperty('--style-btn-active-bg', '#e2bcb7');
+                                root.style.setProperty('--style-btn-active-text', '#392523');
+                                root.style.setProperty('--style-btn-active-border', '#ffffff');
+                                root.style.setProperty('--color-option-text', '#573a3a');
+                                root.style.setProperty('--color-option-active-border', 'white');
+                                root.style.setProperty('--color-option-active-glow', 'rgba(255,255,255,0.7)');
+                                root.style.setProperty('--bubble-option-bg', '#f2d3cf');
+                                root.style.setProperty('--bubble-option-active-border', '#a34040');
+                                root.style.setProperty('--bubble-option-active-bg', '#f5dddb');
+                                root.style.setProperty('--bubble-sample-bg', '#c27c7c');
+                                root.style.setProperty('--bg-upload-bg', '#e2bcb7');
+                                root.style.setProperty('--bg-upload-text', '#392523');
+                                root.style.setProperty('--slider-text', '#573a3a');
+                                root.style.setProperty('--bg-reset-bg', '#e0c4c4');
+                                root.style.setProperty('--bg-reset-text', '#3a2a2a');
+                                root.style.setProperty('--status-text', '#b17b7b');
+                                root.style.setProperty('--status-read', '#1d6b4a');
+                                root.style.setProperty('--status-sending', '#9e4f1a');
+                                root.style.setProperty('--status-sent', '#2e4a8c');
+                                break;
+                        }
+                    } else {
+                        // 清新少女风格
+                        switch(colorName) {
+                            case '初樱粉':
+                                root.style.setProperty('--bg-primary', '#fefefe');
+                                root.style.setProperty('--header-bg', '#ffe6f0');
+                                root.style.setProperty('--header-text', '#875b71');
+                                root.style.setProperty('--bubble-me-bg', '#ffe6f0');
+                                root.style.setProperty('--bubble-me-text', '#875b71');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#4f3441');
+                                root.style.setProperty('--send-btn-bg', '#ffdae8');
+                                root.style.setProperty('--send-btn-text', '#9f5f7a');
+                                root.style.setProperty('--heart-btn-bg', '#ffe2ed');
+                                root.style.setProperty('--footnote', '#b28f9d');
+                                root.style.setProperty('--border-light', '#ffdae8');
+                                root.style.setProperty('--input-focus-border', '#ffb0c8');
+                                root.style.setProperty('--send-btn-hover', '#ffcada');
+                                root.style.setProperty('--tab-bar-bg', '#ffffff');
+                                root.style.setProperty('--tab-text', '#a87b8c');
+                                root.style.setProperty('--tab-active-bg', '#ffeaf2');
+                                root.style.setProperty('--tab-active-text', '#b34773');
+                                root.style.setProperty('--card-header-bg', '#fff0f5');
+                                root.style.setProperty('--card-header-text', '#885e73');
+                                root.style.setProperty('--batch-toggle-bg', '#ffdee9');
+                                root.style.setProperty('--batch-toggle-text', '#7b4f64');
+                                root.style.setProperty('--batch-bar-bg', '#fff5f9');
+                                root.style.setProperty('--batch-bar-text', '#946b80');
+                                root.style.setProperty('--batch-btn-bg', '#ffd0e0');
+                                root.style.setProperty('--batch-btn-text', '#6e4357');
+                                root.style.setProperty('--batch-btn-danger-bg', '#ffc0cf');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#644f5a');
+                                root.style.setProperty('--checkbox-accent', '#ffa5c0');
+                                root.style.setProperty('--del-btn-bg', '#fff0f5');
+                                root.style.setProperty('--del-btn-text', '#b36f8a');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#795f6b');
+                                root.style.setProperty('--stat-strong-bg', '#fff0f5');
+                                root.style.setProperty('--stat-strong-text', '#a14f73');
+                                root.style.setProperty('--stat-shadow', 'rgba(255, 200, 220, 0.15)');
+                                root.style.setProperty('--date-bg', 'rgba(255, 240, 245, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#a15e7c');
+                                root.style.setProperty('--modal-input-bg', '#fefafa');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#ffdae8');
+                                root.style.setProperty('--modal-btn-text', '#6d4a5c');
+                                root.style.setProperty('--modal-btn-primary-bg', '#fec8da');
+                                root.style.setProperty('--modal-btn-primary-text', '#5c384b');
+                                root.style.setProperty('--input-area-bg', '#ffffff');
+                                root.style.setProperty('--input-bg', '#fafafa');
+                                root.style.setProperty('--input-text', '#333');
+                                root.style.setProperty('--btn-shadow', 'rgba(255, 150, 180, 0.1)');
+                                root.style.setProperty('--style-btn-bg', '#ffeef4');
+                                root.style.setProperty('--style-btn-text', '#885e73');
+                                root.style.setProperty('--style-btn-active-bg', '#ffd4e3');
+                                root.style.setProperty('--style-btn-active-text', '#b34773');
+                                root.style.setProperty('--style-btn-active-border', '#ff8ab3');
+                                root.style.setProperty('--color-option-text', '#4a3842');
+                                root.style.setProperty('--color-option-active-border', '#ff8ab3');
+                                root.style.setProperty('--color-option-active-glow', '#ffe2f0');
+                                root.style.setProperty('--bubble-option-bg', '#fff0f5');
+                                root.style.setProperty('--bubble-option-active-border', '#ff8ab3');
+                                root.style.setProperty('--bubble-option-active-bg', '#ffe2f0');
+                                root.style.setProperty('--bubble-sample-bg', '#ffc1d9');
+                                root.style.setProperty('--bg-upload-bg', '#ffdee9');
+                                root.style.setProperty('--bg-upload-text', '#6f4b5d');
+                                root.style.setProperty('--slider-text', '#6d4a5c');
+                                root.style.setProperty('--bg-reset-bg', '#f5e0e8');
+                                root.style.setProperty('--bg-reset-text', '#6d4a5c');
+                                root.style.setProperty('--status-text', '#b28f9d');
+                                root.style.setProperty('--status-read', '#2c6a4f');
+                                root.style.setProperty('--status-sending', '#a55d2c');
+                                root.style.setProperty('--status-sent', '#33558b');
+                                break;
+                            case '浅茶杏':
+                                root.style.setProperty('--bg-primary', '#fefefe');
+                                root.style.setProperty('--header-bg', '#f7ede2');
+                                root.style.setProperty('--header-text', '#7e6b5c');
+                                root.style.setProperty('--bubble-me-bg', '#f7ede2');
+                                root.style.setProperty('--bubble-me-text', '#7e6b5c');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#5a4b40');
+                                root.style.setProperty('--send-btn-bg', '#efe2d4');
+                                root.style.setProperty('--send-btn-text', '#7e6b5c');
+                                root.style.setProperty('--heart-btn-bg', '#f3e3d8');
+                                root.style.setProperty('--footnote', '#aa9586');
+                                root.style.setProperty('--border-light', '#e2d2c4');
+                                root.style.setProperty('--input-focus-border', '#d6bcac');
+                                root.style.setProperty('--send-btn-hover', '#e9d9ca');
+                                root.style.setProperty('--tab-bar-bg', '#ffffff');
+                                root.style.setProperty('--tab-text', '#9b8474');
+                                root.style.setProperty('--tab-active-bg', '#f7ede2');
+                                root.style.setProperty('--tab-active-text', '#a06b4f');
+                                root.style.setProperty('--card-header-bg', '#f9f1e8');
+                                root.style.setProperty('--card-header-text', '#7e6b5c');
+                                root.style.setProperty('--batch-toggle-bg', '#efe2d4');
+                                root.style.setProperty('--batch-toggle-text', '#7e6b5c');
+                                root.style.setProperty('--batch-bar-bg', '#f9f1e8');
+                                root.style.setProperty('--batch-bar-text', '#7e6b5c');
+                                root.style.setProperty('--batch-btn-bg', '#e0cfc0');
+                                root.style.setProperty('--batch-btn-text', '#5a4b40');
+                                root.style.setProperty('--batch-btn-danger-bg', '#ffc0cf');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#5a4b40');
+                                root.style.setProperty('--checkbox-accent', '#bfa690');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#7e6b5c');
+                                root.style.setProperty('--stat-strong-bg', '#f7ede2');
+                                root.style.setProperty('--stat-strong-text', '#7e6b5c');
+                                root.style.setProperty('--stat-shadow', 'rgba(190, 150, 130, 0.1)');
+                                root.style.setProperty('--date-bg', 'rgba(247, 237, 226, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#7e6b5c');
+                                root.style.setProperty('--modal-input-bg', '#fefafa');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#efe2d4');
+                                root.style.setProperty('--modal-btn-text', '#7e6b5c');
+                                root.style.setProperty('--modal-btn-primary-bg', '#f3e3d8');
+                                root.style.setProperty('--modal-btn-primary-text', '#7e6b5c');
+                                root.style.setProperty('--input-area-bg', '#ffffff');
+                                root.style.setProperty('--input-bg', '#fafafa');
+                                root.style.setProperty('--input-text', '#333');
+                                root.style.setProperty('--btn-shadow', 'rgba(190, 150, 130, 0.1)');
+                                root.style.setProperty('--style-btn-bg', '#f7ede2');
+                                root.style.setProperty('--style-btn-text', '#7e6b5c');
+                                root.style.setProperty('--style-btn-active-bg', '#efe2d4');
+                                root.style.setProperty('--style-btn-active-text', '#7e6b5c');
+                                root.style.setProperty('--style-btn-active-border', '#bfa690');
+                                root.style.setProperty('--color-option-text', '#5a4b40');
+                                root.style.setProperty('--color-option-active-border', '#bfa690');
+                                root.style.setProperty('--color-option-active-glow', '#f7ede2');
+                                root.style.setProperty('--bubble-option-bg', '#f7ede2');
+                                root.style.setProperty('--bubble-option-active-border', '#bfa690');
+                                root.style.setProperty('--bubble-option-active-bg', '#efe2d4');
+                                root.style.setProperty('--bubble-sample-bg', '#bfa690');
+                                root.style.setProperty('--bg-upload-bg', '#efe2d4');
+                                root.style.setProperty('--bg-upload-text', '#7e6b5c');
+                                root.style.setProperty('--slider-text', '#7e6b5c');
+                                root.style.setProperty('--bg-reset-bg', '#f5e0e8');
+                                root.style.setProperty('--bg-reset-text', '#7e6b5c');
+                                root.style.setProperty('--status-text', '#aa9586');
+                                root.style.setProperty('--status-read', '#2c6a4f');
+                                root.style.setProperty('--status-sending', '#a55d2c');
+                                root.style.setProperty('--status-sent', '#33558b');
+                                break;
+                            case '薄荷冰':
+                                root.style.setProperty('--bg-primary', '#fefefe');
+                                root.style.setProperty('--header-bg', '#e0f2f0');
+                                root.style.setProperty('--header-text', '#3f6b64');
+                                root.style.setProperty('--bubble-me-bg', '#e0f2f0');
+                                root.style.setProperty('--bubble-me-text', '#3f6b64');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#2f554f');
+                                root.style.setProperty('--send-btn-bg', '#c6e3df');
+                                root.style.setProperty('--send-btn-text', '#2f554f');
+                                root.style.setProperty('--heart-btn-bg', '#d2ece8');
+                                root.style.setProperty('--footnote', '#6f9b95');
+                                root.style.setProperty('--border-light', '#c6e0dc');
+                                root.style.setProperty('--input-focus-border', '#aad0cb');
+                                root.style.setProperty('--send-btn-hover', '#d2ece8');
+                                root.style.setProperty('--tab-bar-bg', '#ffffff');
+                                root.style.setProperty('--tab-text', '#57807a');
+                                root.style.setProperty('--tab-active-bg', '#e0f2f0');
+                                root.style.setProperty('--tab-active-text', '#2a6b5f');
+                                root.style.setProperty('--card-header-bg', '#e6f5f2');
+                                root.style.setProperty('--card-header-text', '#3f6b64');
+                                root.style.setProperty('--batch-toggle-bg', '#c6e3df');
+                                root.style.setProperty('--batch-toggle-text', '#2f554f');
+                                root.style.setProperty('--batch-bar-bg', '#e6f5f2');
+                                root.style.setProperty('--batch-bar-text', '#3f6b64');
+                                root.style.setProperty('--batch-btn-bg', '#b0d5d0');
+                                root.style.setProperty('--batch-btn-text', '#1f403b');
+                                root.style.setProperty('--batch-btn-danger-bg', '#ffc0cf');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#2f554f');
+                                root.style.setProperty('--checkbox-accent', '#7fb3ad');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#3f6b64');
+                                root.style.setProperty('--stat-strong-bg', '#e0f2f0');
+                                root.style.setProperty('--stat-strong-text', '#3f6b64');
+                                root.style.setProperty('--stat-shadow', 'rgba(120, 180, 170, 0.1)');
+                                root.style.setProperty('--date-bg', 'rgba(224, 242, 240, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#3f6b64');
+                                root.style.setProperty('--modal-input-bg', '#fefafa');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#c6e3df');
+                                root.style.setProperty('--modal-btn-text', '#2f554f');
+                                root.style.setProperty('--modal-btn-primary-bg', '#d2ece8');
+                                root.style.setProperty('--modal-btn-primary-text', '#2f554f');
+                                root.style.setProperty('--input-area-bg', '#ffffff');
+                                root.style.setProperty('--input-bg', '#fafafa');
+                                root.style.setProperty('--input-text', '#333');
+                                root.style.setProperty('--btn-shadow', 'rgba(120, 180, 170, 0.1)');
+                                root.style.setProperty('--style-btn-bg', '#e0f2f0');
+                                root.style.setProperty('--style-btn-text', '#3f6b64');
+                                root.style.setProperty('--style-btn-active-bg', '#c6e3df');
+                                root.style.setProperty('--style-btn-active-text', '#2f554f');
+                                root.style.setProperty('--style-btn-active-border', '#7fb3ad');
+                                root.style.setProperty('--color-option-text', '#2f554f');
+                                root.style.setProperty('--color-option-active-border', '#7fb3ad');
+                                root.style.setProperty('--color-option-active-glow', '#e0f2f0');
+                                root.style.setProperty('--bubble-option-bg', '#e0f2f0');
+                                root.style.setProperty('--bubble-option-active-border', '#7fb3ad');
+                                root.style.setProperty('--bubble-option-active-bg', '#c6e3df');
+                                root.style.setProperty('--bubble-sample-bg', '#7fb3ad');
+                                root.style.setProperty('--bg-upload-bg', '#c6e3df');
+                                root.style.setProperty('--bg-upload-text', '#2f554f');
+                                root.style.setProperty('--slider-text', '#3f6b64');
+                                root.style.setProperty('--bg-reset-bg', '#f5e0e8');
+                                root.style.setProperty('--bg-reset-text', '#3f6b64');
+                                root.style.setProperty('--status-text', '#6f9b95');
+                                root.style.setProperty('--status-read', '#2c6a4f');
+                                root.style.setProperty('--status-sending', '#a55d2c');
+                                root.style.setProperty('--status-sent', '#33558b');
+                                break;
+                            case '丁香紫':
+                                root.style.setProperty('--bg-primary', '#fefefe');
+                                root.style.setProperty('--header-bg', '#f0e6ff');
+                                root.style.setProperty('--header-text', '#584375');
+                                root.style.setProperty('--bubble-me-bg', '#f0e6ff');
+                                root.style.setProperty('--bubble-me-text', '#584375');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#3f3057');
+                                root.style.setProperty('--send-btn-bg', '#e2d4fa');
+                                root.style.setProperty('--send-btn-text', '#584375');
+                                root.style.setProperty('--heart-btn-bg', '#ebe0ff');
+                                root.style.setProperty('--footnote', '#9480b3');
+                                root.style.setProperty('--border-light', '#dccdf5');
+                                root.style.setProperty('--input-focus-border', '#c6b0ec');
+                                root.style.setProperty('--send-btn-hover', '#ebe0ff');
+                                root.style.setProperty('--tab-bar-bg', '#ffffff');
+                                root.style.setProperty('--tab-text', '#7a639b');
+                                root.style.setProperty('--tab-active-bg', '#f0e6ff');
+                                root.style.setProperty('--tab-active-text', '#5d3e8a');
+                                root.style.setProperty('--card-header-bg', '#f3ecff');
+                                root.style.setProperty('--card-header-text', '#584375');
+                                root.style.setProperty('--batch-toggle-bg', '#e2d4fa');
+                                root.style.setProperty('--batch-toggle-text', '#584375');
+                                root.style.setProperty('--batch-bar-bg', '#f3ecff');
+                                root.style.setProperty('--batch-bar-text', '#584375');
+                                root.style.setProperty('--batch-btn-bg', '#cfbdf2');
+                                root.style.setProperty('--batch-btn-text', '#2e2440');
+                                root.style.setProperty('--batch-btn-danger-bg', '#ffc0cf');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#3f3057');
+                                root.style.setProperty('--checkbox-accent', '#b29bda');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#584375');
+                                root.style.setProperty('--stat-strong-bg', '#f0e6ff');
+                                root.style.setProperty('--stat-strong-text', '#584375');
+                                root.style.setProperty('--stat-shadow', 'rgba(160, 130, 200, 0.1)');
+                                root.style.setProperty('--date-bg', 'rgba(240, 230, 255, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#584375');
+                                root.style.setProperty('--modal-input-bg', '#fefafa');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#e2d4fa');
+                                root.style.setProperty('--modal-btn-text', '#584375');
+                                root.style.setProperty('--modal-btn-primary-bg', '#ebe0ff');
+                                root.style.setProperty('--modal-btn-primary-text', '#584375');
+                                root.style.setProperty('--input-area-bg', '#ffffff');
+                                root.style.setProperty('--input-bg', '#fafafa');
+                                root.style.setProperty('--input-text', '#333');
+                                root.style.setProperty('--btn-shadow', 'rgba(160, 130, 200, 0.1)');
+                                root.style.setProperty('--style-btn-bg', '#f0e6ff');
+                                root.style.setProperty('--style-btn-text', '#584375');
+                                root.style.setProperty('--style-btn-active-bg', '#e2d4fa');
+                                root.style.setProperty('--style-btn-active-text', '#584375');
+                                root.style.setProperty('--style-btn-active-border', '#b29bda');
+                                root.style.setProperty('--color-option-text', '#3f3057');
+                                root.style.setProperty('--color-option-active-border', '#b29bda');
+                                root.style.setProperty('--color-option-active-glow', '#f0e6ff');
+                                root.style.setProperty('--bubble-option-bg', '#f0e6ff');
+                                root.style.setProperty('--bubble-option-active-border', '#b29bda');
+                                root.style.setProperty('--bubble-option-active-bg', '#e2d4fa');
+                                root.style.setProperty('--bubble-sample-bg', '#b29bda');
+                                root.style.setProperty('--bg-upload-bg', '#e2d4fa');
+                                root.style.setProperty('--bg-upload-text', '#584375');
+                                root.style.setProperty('--slider-text', '#584375');
+                                root.style.setProperty('--bg-reset-bg', '#f5e0e8');
+                                root.style.setProperty('--bg-reset-text', '#584375');
+                                root.style.setProperty('--status-text', '#9480b3');
+                                root.style.setProperty('--status-read', '#2c6a4f');
+                                root.style.setProperty('--status-sending', '#a55d2c');
+                                root.style.setProperty('--status-sent', '#33558b');
+                                break;
+                            case '茉莉黄':
+                                root.style.setProperty('--bg-primary', '#fefefe');
+                                root.style.setProperty('--header-bg', '#fff7e6');
+                                root.style.setProperty('--header-text', '#8a755a');
+                                root.style.setProperty('--bubble-me-bg', '#fff7e6');
+                                root.style.setProperty('--bubble-me-text', '#8a755a');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#6a5b45');
+                                root.style.setProperty('--send-btn-bg', '#feecce');
+                                root.style.setProperty('--send-btn-text', '#8a755a');
+                                root.style.setProperty('--heart-btn-bg', '#fff2df');
+                                root.style.setProperty('--footnote', '#b8a181');
+                                root.style.setProperty('--border-light', '#f7e4c8');
+                                root.style.setProperty('--input-focus-border', '#edd19f');
+                                root.style.setProperty('--send-btn-hover', '#fff2df');
+                                root.style.setProperty('--tab-bar-bg', '#ffffff');
+                                root.style.setProperty('--tab-text', '#a38b6c');
+                                root.style.setProperty('--tab-active-bg', '#fff7e6');
+                                root.style.setProperty('--tab-active-text', '#af7d44');
+                                root.style.setProperty('--card-header-bg', '#fff9ed');
+                                root.style.setProperty('--card-header-text', '#8a755a');
+                                root.style.setProperty('--batch-toggle-bg', '#feecce');
+                                root.style.setProperty('--batch-toggle-text', '#8a755a');
+                                root.style.setProperty('--batch-bar-bg', '#fff9ed');
+                                root.style.setProperty('--batch-bar-text', '#8a755a');
+                                root.style.setProperty('--batch-btn-bg', '#f5ddb5');
+                                root.style.setProperty('--batch-btn-text', '#534432');
+                                root.style.setProperty('--batch-btn-danger-bg', '#ffc0cf');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#6a5b45');
+                                root.style.setProperty('--checkbox-accent', '#dbb78b');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#8a755a');
+                                root.style.setProperty('--stat-strong-bg', '#fff7e6');
+                                root.style.setProperty('--stat-strong-text', '#8a755a');
+                                root.style.setProperty('--stat-shadow', 'rgba(200, 170, 130, 0.1)');
+                                root.style.setProperty('--date-bg', 'rgba(255, 247, 230, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#8a755a');
+                                root.style.setProperty('--modal-input-bg', '#fefafa');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#feecce');
+                                root.style.setProperty('--modal-btn-text', '#8a755a');
+                                root.style.setProperty('--modal-btn-primary-bg', '#fff2df');
+                                root.style.setProperty('--modal-btn-primary-text', '#8a755a');
+                                root.style.setProperty('--input-area-bg', '#ffffff');
+                                root.style.setProperty('--input-bg', '#fafafa');
+                                root.style.setProperty('--input-text', '#333');
+                                root.style.setProperty('--btn-shadow', 'rgba(200, 170, 130, 0.1)');
+                                root.style.setProperty('--style-btn-bg', '#fff7e6');
+                                root.style.setProperty('--style-btn-text', '#8a755a');
+                                root.style.setProperty('--style-btn-active-bg', '#feecce');
+                                root.style.setProperty('--style-btn-active-text', '#8a755a');
+                                root.style.setProperty('--style-btn-active-border', '#dbb78b');
+                                root.style.setProperty('--color-option-text', '#6a5b45');
+                                root.style.setProperty('--color-option-active-border', '#dbb78b');
+                                root.style.setProperty('--color-option-active-glow', '#fff7e6');
+                                root.style.setProperty('--bubble-option-bg', '#fff7e6');
+                                root.style.setProperty('--bubble-option-active-border', '#dbb78b');
+                                root.style.setProperty('--bubble-option-active-bg', '#feecce');
+                                root.style.setProperty('--bubble-sample-bg', '#dbb78b');
+                                root.style.setProperty('--bg-upload-bg', '#feecce');
+                                root.style.setProperty('--bg-upload-text', '#8a755a');
+                                root.style.setProperty('--slider-text', '#8a755a');
+                                root.style.setProperty('--bg-reset-bg', '#f5e0e8');
+                                root.style.setProperty('--bg-reset-text', '#8a755a');
+                                root.style.setProperty('--status-text', '#b8a181');
+                                root.style.setProperty('--status-read', '#2c6a4f');
+                                root.style.setProperty('--status-sending', '#a55d2c');
+                                root.style.setProperty('--status-sent', '#33558b');
+                                break;
+                            case '雾霾蓝':
+                                root.style.setProperty('--bg-primary', '#fefefe');
+                                root.style.setProperty('--header-bg', '#e6f0fa');
+                                root.style.setProperty('--header-text', '#435f73');
+                                root.style.setProperty('--bubble-me-bg', '#e6f0fa');
+                                root.style.setProperty('--bubble-me-text', '#435f73');
+                                root.style.setProperty('--bubble-friend-bg', '#ffffff');
+                                root.style.setProperty('--bubble-friend-text', '#364f61');
+                                root.style.setProperty('--send-btn-bg', '#cde0f0');
+                                root.style.setProperty('--send-btn-text', '#364f61');
+                                root.style.setProperty('--heart-btn-bg', '#daeaf7');
+                                root.style.setProperty('--footnote', '#7f98aa');
+                                root.style.setProperty('--border-light', '#d1e0ed');
+                                root.style.setProperty('--input-focus-border', '#b0cae0');
+                                root.style.setProperty('--send-btn-hover', '#daeaf7');
+                                root.style.setProperty('--tab-bar-bg', '#ffffff');
+                                root.style.setProperty('--tab-text', '#607b90');
+                                root.style.setProperty('--tab-active-bg', '#e6f0fa');
+                                root.style.setProperty('--tab-active-text', '#2c5777');
+                                root.style.setProperty('--card-header-bg', '#ecf4fc');
+                                root.style.setProperty('--card-header-text', '#435f73');
+                                root.style.setProperty('--batch-toggle-bg', '#cde0f0');
+                                root.style.setProperty('--batch-toggle-text', '#364f61');
+                                root.style.setProperty('--batch-bar-bg', '#ecf4fc');
+                                root.style.setProperty('--batch-bar-text', '#435f73');
+                                root.style.setProperty('--batch-btn-bg', '#b2cce3');
+                                root.style.setProperty('--batch-btn-text', '#233440');
+                                root.style.setProperty('--batch-btn-danger-bg', '#ffc0cf');
+                                root.style.setProperty('--card-item-bg', 'white');
+                                root.style.setProperty('--card-text', '#364f61');
+                                root.style.setProperty('--checkbox-accent', '#8faec9');
+                                root.style.setProperty('--del-btn-bg', '#f5e1e1');
+                                root.style.setProperty('--del-btn-text', '#b48c8c');
+                                root.style.setProperty('--stat-bg', 'white');
+                                root.style.setProperty('--stat-text', '#435f73');
+                                root.style.setProperty('--stat-strong-bg', '#e6f0fa');
+                                root.style.setProperty('--stat-strong-text', '#435f73');
+                                root.style.setProperty('--stat-shadow', 'rgba(120, 150, 180, 0.1)');
+                                root.style.setProperty('--date-bg', 'rgba(230, 240, 250, 0.7)');
+                                root.style.setProperty('--modal-bg', 'white');
+                                root.style.setProperty('--modal-text', '#435f73');
+                                root.style.setProperty('--modal-input-bg', '#fefafa');
+                                root.style.setProperty('--modal-input-text', '#333');
+                                root.style.setProperty('--modal-btn-bg', '#cde0f0');
+                                root.style.setProperty('--modal-btn-text', '#364f61');
+                                root.style.setProperty('--modal-btn-primary-bg', '#daeaf7');
+                                root.style.setProperty('--modal-btn-primary-text', '#364f61');
+                                root.style.setProperty('--input-area-bg', '#ffffff');
+                                root.style.setProperty('--input-bg', '#fafafa');
+                                root.style.setProperty('--input-text', '#333');
+                                root.style.setProperty('--btn-shadow', 'rgba(120, 150, 180, 0.1)');
+                                root.style.setProperty('--style-btn-bg', '#e6f0fa');
+                                root.style.setProperty('--style-btn-text', '#435f73');
+                                root.style.setProperty('--style-btn-active-bg', '#cde0f0');
+                                root.style.setProperty('--style-btn-active-text', '#364f61');
+                                root.style.setProperty('--style-btn-active-border', '#8faec9');
+                                root.style.setProperty('--color-option-text', '#364f61');
+                                root.style.setProperty('--color-option-active-border', '#8faec9');
+                                root.style.setProperty('--color-option-active-glow', '#e6f0fa');
+                                root.style.setProperty('--bubble-option-bg', '#e6f0fa');
+                                root.style.setProperty('--bubble-option-active-border', '#8faec9');
+                                root.style.setProperty('--bubble-option-active-bg', '#cde0f0');
+                                root.style.setProperty('--bubble-sample-bg', '#8faec9');
+                                root.style.setProperty('--bg-upload-bg', '#cde0f0');
+                                root.style.setProperty('--bg-upload-text', '#364f61');
+                                root.style.setProperty('--slider-text', '#435f73');
+                                root.style.setProperty('--bg-reset-bg', '#f5e0e8');
+                                root.style.setProperty('--bg-reset-text', '#435f73');
+                                root.style.setProperty('--status-text', '#7f98aa');
+                                root.style.setProperty('--status-read', '#2c6a4f');
+                                root.style.setProperty('--status-sending', '#a55d2c');
+                                root.style.setProperty('--status-sent', '#33558b');
+                                break;
+                        }
+                    }
+                    // 更新气泡半径
+                    updateBubbleRadius(bubbleStyle.value);
+                }
+
+                function setStyleMode(mode) {
+                    styleMode.value = mode;
+                    const firstColor = mode === 'simple' ? simpleColors[0].name : cuteColors[0].name;
+                    currentTheme.value = firstColor;
+                    applyTheme(mode, firstColor);
+                }
+
+                function setColorTheme(name) {
+                    currentTheme.value = name;
+                    applyTheme(styleMode.value, name);
+                }
+
+                function setBubbleStyle(s) {
+                    bubbleStyle.value = s;
+                    updateBubbleRadius(s);
+                }
+
+                function updateBubbleRadius(style) {
+                    const root = document.documentElement;
+                    if (style === 1) {
+                        root.style.setProperty('--bubble-me-radius', '18px 4px 18px 18px');
+                        root.style.setProperty('--bubble-friend-radius', '4px 18px 18px 18px');
+                    } else if (style === 2) {
+                        root.style.setProperty('--bubble-me-radius', '30px 8px 30px 8px');
+                        root.style.setProperty('--bubble-friend-radius', '8px 30px 8px 30px');
+                    } else if (style === 3) {
+                        root.style.setProperty('--bubble-me-radius', '20px 20px 4px 20px');
+                        root.style.setProperty('--bubble-friend-radius', '20px 20px 20px 4px');
+                    } else if (style === 4) {
+                        root.style.setProperty('--bubble-me-radius', '10px 10px 0 10px');
+                        root.style.setProperty('--bubble-friend-radius', '10px 10px 10px 0');
+                    }
+                }
+
+                function bubbleSampleStyle(index) {
+                    const styles = {
+                        1: { borderRadius: '4px 18px 18px 18px' },
+                        2: { borderRadius: '8px 30px 8px 30px' },
+                        3: { borderRadius: '20px 20px 20px 4px' },
+                        4: { borderRadius: '10px 10px 10px 0' }
+                    };
+                    return styles[index] || styles[1];
+                }
+
+                // 初始化主题（从localStorage加载后应用）
+                setTimeout(() => {
+                    applyTheme(styleMode.value, currentTheme.value);
+                    updateBubbleRadius(bubbleStyle.value);
+                }, 0);
+
+                // 文件上传
+                function onBgImageUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        bgImage.value = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+                function resetBgImage() {
+                    bgImage.value = null;
+                }
+
+                // ---------- 重置功能 ----------
+                function confirmReset() {
+                    if (confirm('确定要重置所有数据吗？字卡库和聊天记录将恢复为初始状态。')) {
+                        // 重置字卡为默认
+                        cards.value = [...defaultCards];
+                        // 重置消息为默认
+                        const now = Date.now();
+                        const newDefaultMessages = [
+                            { id: 1, sender: 'friend', content: '嗨～ 今天过得怎么样？', timestamp: new Date(now - 7200000).toISOString(), status: 'sent' },
+                            { id: 2, sender: 'me', content: '还不错呀', timestamp: new Date(now - 3600000).toISOString(), status: '已读' },
+                            { id: 3, sender: 'friend', content: '那就好～', timestamp: new Date(now - 3500000).toISOString(), status: 'sent' },
+                        ];
+                        messages.value = newDefaultMessages;
+                        nextId = 4;
+                        // 清空待回复队列
+                        pendingMessageIds.value = [];
+                        isReplying = false;
+                        // 保存到localStorage（由watch自动完成）
+                        saveToStorage(STORAGE_KEYS.CARDS, cards.value);
+                        saveToStorage(STORAGE_KEYS.MESSAGES, messages.value);
+                    }
+                }
+
+                // ---------- 其他状态 ----------
+                const currentPage = ref('chat');
+                const headerTitle = computed(() => {
+                    const map = { chat: '聊天', cards: '字卡管理', stats: '统计', theme: '主题' };
+                    return map[currentPage.value];
+                });
+
+                const newCardText = ref('');
+
+                // 批量删除
+                const batchMode = ref(false);
+                const selectedCards = ref([]);
+                const selectAll = ref(false);
+                watch(selectAll, (val) => {
+                    if (val) {
+                        selectedCards.value = cards.value.map((_, idx) => idx);
+                    } else {
+                        selectedCards.value = [];
+                    }
+                });
+                watch(selectedCards, (newVal) => {
+                    if (newVal.length === cards.value.length && cards.value.length > 0) {
+                        selectAll.value = true;
+                    } else {
+                        selectAll.value = false;
+                    }
+                });
+                function toggleBatchMode() {
+                    batchMode.value = !batchMode.value;
+                    if (!batchMode.value) {
+                        selectedCards.value = [];
+                        selectAll.value = false;
+                    }
+                }
+                function deleteSelected() {
+                    if (selectedCards.value.length === 0) return;
+                    const indexes = [...selectedCards.value].sort((a,b) => b - a);
+                    for (let idx of indexes) {
+                        cards.value.splice(idx, 1);
+                    }
+                    selectedCards.value = [];
+                    selectAll.value = false;
+                    if (cards.value.length === 0) batchMode.value = false;
+                }
+
+                // 多消息
+                const showBulkModal = ref(false);
+                const bulkInput = ref('');
+
+                // 单条输入
+                const singleMessage = ref('');
+
+                // 回复队列
+                const pendingMessageIds = ref([]);
+                let isReplying = false;
+
+                // 批量发送锁
+                let isBulkSending = false;
+
+                // 消息功能
+                function genId() { return ++nextId; }
+                function addMyMessage(content) {
+                    const now = new Date().toISOString();
+                    const msg = {
+                        id: genId(),
+                        sender: 'me',
+                        content: content,
+                        timestamp: now,
+                        status: '未读',
+                    };
+                    messages.value.push(msg);
+
+                    if (cards.value.length > 0) {
+                        pendingMessageIds.value.push(msg.id);
+                        processNextPending();
+                    } else {
+                        msg.status = '已读';
+                    }
+                    scrollToBottom();
+                    return msg;
+                }
+
+                async function processNextPending() {
+                    if (isReplying) return;
+                    if (pendingMessageIds.value.length === 0) return;
+
+                    isReplying = true;
+                    const targetMsgId = pendingMessageIds.value[0];
+                    const targetMsg = messages.value.find(m => m.id === targetMsgId);
+                    if (!targetMsg) {
+                        pendingMessageIds.value.shift();
+                        isReplying = false;
+                        processNextPending();
+                        return;
+                    }
+
+                    const availableCards = [...cards.value];
+                    if (availableCards.length === 0) {
+                        targetMsg.status = '已读';
+                        pendingMessageIds.value.shift();
+                        isReplying = false;
+                        processNextPending();
+                        return;
+                    }
+
+                    const maxPossible = Math.min(availableCards.length, 2);
+                    const replyCount = maxPossible === 1 ? 1 : Math.floor(Math.random() * 2) + 1;
+
+                    targetMsg.status = '已读';
+
+                    const shuffled = [...availableCards].sort(() => Math.random() - 0.5);
+                    const selected = shuffled.slice(0, replyCount);
+                    const replyMsgIds = [];
+
+                    await new Promise(res => setTimeout(res, 1500));
+
+                    for (let i = 0; i < selected.length; i++) {
+                        if (i > 0) {
+                            await new Promise(res => setTimeout(res, 1500));
+                        }
+
+                        const stillExist = messages.value.find(m => m.id === targetMsgId);
+                        if (!stillExist) break;
+
+                        const replyContent = selected[i];
+                        const friendMsgId = genId();
+                        const friendMsg = {
+                            id: friendMsgId,
+                            sender: 'friend',
+                            content: replyContent,
+                            timestamp: new Date().toISOString(),
+                            status: 'sending'
+                        };
+                        messages.value.push(friendMsg);
+                        replyMsgIds.push(friendMsgId);
+                        scrollToBottom();
+
+                        if (replyCount === 1) {
+                            friendMsg.status = 'sent';
+                        } else if (i === 0 && replyCount > 1) {
+                            // keep sending
+                        } else if (i === 1 && replyCount > 1) {
+                            const firstMsg = messages.value.find(m => m.id === replyMsgIds[0]);
+                            if (firstMsg) firstMsg.status = 'sent';
+                        }
+
+                        if (i === selected.length - 1) {
+                            friendMsg.status = 'sent';
+                        }
+                    }
+
+                    replyMsgIds.forEach(id => {
+                        const m = messages.value.find(m => m.id === id);
+                        if (m && m.status !== 'sent') {
+                            m.status = 'sent';
+                        }
+                    });
+
+                    pendingMessageIds.value.shift();
+                    isReplying = false;
+                    processNextPending();
+                }
+
+                const chatPanel = ref(null);
+                function scrollToBottom() {
+                    nextTick(() => {
+                        if (chatPanel.value) {
+                            chatPanel.value.scrollTop = chatPanel.value.scrollHeight;
+                        }
+                    });
+                }
+
+                function sendSingleMessage() {
+                    const text = singleMessage.value.trim();
+                    if (!text) return;
+                    addMyMessage(text);
+                    singleMessage.value = '';
+                }
+
+                async function sendBulkMessages() {
+                    if (isBulkSending) return;
+                    const raw = bulkInput.value;
+                    const lines = raw.split(/\n/).map(l => l.trim()).filter(l => l !== '');
+                    if (lines.length === 0) {
+                        showBulkModal.value = false;
+                        return;
+                    }
+
+                    isBulkSending = true;
+                    showBulkModal.value = false;
+                    bulkInput.value = '';
+
+                    for (let i = 0; i < lines.length; i++) {
+                        addMyMessage(lines[i]);
+                        await new Promise(r => setTimeout(r, 4000));
+                    }
+                    isBulkSending = false;
+                }
+
+                function addCard() {
+                    const val = newCardText.value.trim();
+                    if (val === '') return;
+                    cards.value.push(val);
+                    newCardText.value = '';
+                }
+                function deleteCard(index) {
+                    cards.value.splice(index, 1);
+                }
+
+                const cardCount = computed(() => cards.value.length);
+                const totalMessages = computed(() => messages.value.length);
+                const sortedCardUsageStats = computed(() => {
+                    const stats = {};
+                    messages.value.filter(m => m.sender === 'friend').forEach(m => {
+                        stats[m.content] = (stats[m.content] || 0) + 1;
+                    });
+                    return Object.entries(stats)
+                        .map(([content, count]) => ({ content, count }))
+                        .sort((a, b) => b.count - a.count);
+                });
+
+                function isSameDay(d1, d2) {
+                    return dayjs(d1).isSame(dayjs(d2), 'day');
+                }
+                function formatDate(date) {
+                    return dayjs(date).format('YYYY年MM月DD日');
+                }
+                function formatTime(date) {
+                    return dayjs(date).format('HH:mm');
+                }
+
+                return {
+                    currentPage, headerTitle, cards, newCardText, messages,
+                    singleMessage, showBulkModal, bulkInput,
+                    styleMode, simpleColors, cuteColors, currentTheme, currentColors,
+                    setStyleMode, setColorTheme,
+                    bubbleStyle, setBubbleStyle, bubbleSampleStyle,
+                    bgImage, bgOpacity, onBgImageUpload, resetBgImage,
+                    cardCount, totalMessages, sortedCardUsageStats,
+                    addCard, deleteCard, sendSingleMessage, sendBulkMessages,
+                    chatPanel, isSameDay, formatDate, formatTime,
+                    batchMode, selectedCards, selectAll, toggleBatchMode, deleteSelected,
+                    confirmReset,
+                };
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>
